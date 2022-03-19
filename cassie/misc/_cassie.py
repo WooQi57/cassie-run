@@ -17,28 +17,20 @@ import pickle
 
 import torch
 
-# Load clock based reward functions from file
-def load_reward_clock_funcs(path):
-    with open(path, "rb") as f:
-        clock_funcs = pickle.load(f)
-    return clock_funcs
 
 
 class CassieEnv:
-    def __init__(self, traj='walking', simrate=50, command_profile="clock", input_profile="full", dynamics_randomization=True,
+    def __init__(self, simrate=50, input_profile="full", dynamics_randomization=True,
                  learn_gains=False, reward="iros_paper",
                  config="./cassie/cassiemujoco/cassie.xml", history=0, **kwargs):
 
-        dirname = os.path.dirname(__file__)
         self.config = config
         self.sim = CassieSim(self.config)
         # self.sim = CassieSim("./cassie/cassiemujoco/cassie_drop_step.xml")
         self.vis = None
 
         # Arguments for the simulation and state space
-        self.command_profile = command_profile
         self.input_profile = input_profile
-        self.clock_based = True
         self.dynamics_randomization = dynamics_randomization
 
         # Arguments for reward function
@@ -46,7 +38,7 @@ class CassieEnv:
         self.early_term_cutoff = 0.3
 
         # State space
-        self.observation_space, self.clock_inds, self.mirrored_obs = self.set_up_state_space(self.command_profile, self.input_profile)
+        self.observation_space, self.clock_inds, self.mirrored_obs = self.set_up_state_space()
 
         # Adds option for state history for FF nets
         self._obs = len(self.observation_space)
@@ -91,10 +83,7 @@ class CassieEnv:
         self.have_incentive = False if "no_incentive" in self.reward_func else True
         self.strict_relaxer = 0.1
         self.early_reward = False
-        if self.command_profile == "phase":
-            self.set_up_phase_reward()
-        elif self.command_profile == "clock":
-            self.set_up_clock_reward(dirname)
+
 
         # see include/cassiemujoco.h for meaning of these indices
         self.pos_idx = [7, 8, 9, 14, 20, 21, 22, 23, 28, 34]
@@ -142,10 +131,7 @@ class CassieEnv:
         self.last_pelvis_pos = self.sim.qpos()[0:3]
 
         #### Dynamics Randomization ####
-        self.dynamics_randomization = dynamics_randomization
-        self.slope_rand = dynamics_randomization
-        self.joint_rand = dynamics_randomization
-
+        
         self.max_pitch_incline = 0.03
         self.max_roll_incline = 0.03
         
@@ -182,96 +168,21 @@ class CassieEnv:
 
         self.debug = False
 
-    # Set up phase reward for dynamic phase functions
-    def set_up_phase_reward(self):
-
-        if "early" in self.reward_func:
-            self.early_reward = True
-
-        if "library" in self.reward_func:
-            self.phase_input_mode = "library"
-        else:
-            self.phase_input_mode = None  # Vary all parts of input
-
-        if "no_speed" in self.reward_func:
-            self.reward_func = "no_speed_clock"
-        else:
-            self.reward_func = "clock"
-
-    # Set up clock reward for loaded in phase functions
-    def set_up_clock_reward(self, dirname):
-        
-        if "early" in self.reward_func:
-            self.early_reward = True
-
-        if "load" in self.reward_func:
-            self.reward_clock_func = load_reward_clock_funcs(os.path.join(dirname, "rewards", "reward_clock_funcs", self.reward_func + ".pkl"))
-            self.left_clock = self.reward_clock_func["left"]
-            self.right_clock = self.reward_clock_func["right"]
-            self.reward_func = "load_clock"
-        else:
-
-            if "grounded" in self.reward_func:
-                self.stance_mode = "grounded"
-            elif "aerial" in self.reward_func:
-                self.stance_mode = "aerial"
-            else:
-                self.stance_mode = "zero"
-
-            # Clock based rewards are organized as follows: "<approach>_<pkl-file-path>" where <approach> is either "" or "max_vel" or "switch"
-            # extract <approach> from reward string
-            if "max_vel" in self.reward_func:    
-                self.reward_func = "max_vel_clock"
-            elif "switch" in self.reward_func:
-                # switch from walking to running, where walking path is specified
-                self.switch_speed = 1.8
-                self.reward_func = "clock"
-            else:
-                # match commanded speed input. maybe constrained to walking or running or figuring out based on specified path
-                # approach = ""
-                self.reward_func = "clock"
-
-    def set_up_state_space(self, command_profile, input_profile):
+    def set_up_state_space(self, input_profile):
 
         full_state_est_size = 46
-        min_state_est_size = 21
         speed_size     = 2      # x speed, y speed
         clock_size     = 2      # sin, cos
-        phase_size     = 5      # swing duration, stance duration, one-hot encoding of stance mode
-
-        # input --> FULL
-        if input_profile == "full":
-            base_mir_obs = np.array([0.1, 1, -2, 3, -4, -10, -11, 12, 13, 14, -5, -6, 7, 8, 9, 15, -16, 17, -18, 19, -20, -26, -27, 28, 29, 30, -21, -22, 23, 24, 25, 31, -32, 33, 37, 38, 39, 34, 35, 36, 43, 44, 45, 40, 41, 42])
-            obs_size = full_state_est_size
-        # input --> MIN
-        elif input_profile == "min":
-            base_mir_obs = np.array([
-                3, 4, 5,            # L foot relative pos
-                0.1, 1, 2,          # R foot relative pos
-                6, -7, 8, -9,       # pelvis orient (quaternion)
-                -10, 11, -12,       # pelvis rot Vel
-                17, -18, 19, -20,   # L foot orient
-                13, -14, 15, -16    # R foot orient
-            ])
-            obs_size = min_state_est_size
-        else:
-            raise NotImplementedError
-
-        # command --> CLOCK_BASED : clock, speed
-        if command_profile == "clock":
-            append_obs = np.array([len(base_mir_obs) + i for i in range(clock_size+speed_size)])
-            mirrored_obs = np.concatenate([base_mir_obs, append_obs])
-            clock_inds = append_obs[0:clock_size].tolist()
-            obs_size += clock_size + speed_size
-        # command --> PHASE_BASED : clock, phase info, speed
-        elif command_profile == "phase":
-            append_obs = np.array([len(base_mir_obs) + i for i in range(clock_size+phase_size+speed_size)])
-            mirrored_obs = np.concatenate([base_mir_obs, append_obs])
-            clock_inds = append_obs[0:clock_size].tolist()
-            obs_size += clock_size + phase_size + speed_size
-        else:
-            raise NotImplementedError
-
+        
+        
+        base_mir_obs = np.array([0.1, 1, -2, 3, -4, -10, -11, 12, 13, 14, -5, -6, 7, 8, 9, 15, -16, 17, -18, 19, -20, -26, -27, 28, 29, 30, -21, -22, 23, 24, 25, 31, -32, 33, 37, 38, 39, 34, 35, 36, 43, 44, 45, 40, 41, 42])
+        obs_size = full_state_est_size
+                
+        append_obs = np.array([len(base_mir_obs) + i for i in range(clock_size+speed_size)])
+        mirrored_obs = np.concatenate([base_mir_obs, append_obs])
+        clock_inds = append_obs[0:clock_size].tolist()
+        obs_size += clock_size + speed_size
+        
         observation_space = np.zeros(obs_size)
         mirrored_obs = mirrored_obs.tolist()
 
@@ -350,42 +261,6 @@ class CassieEnv:
         elif not self.r_swing and foot_pos[5] >= 0:
             self.r_swing = True
 
-    # Basic version of step_simulation, that only simulates forward in time, does not do any other
-    # computation for reward, etc. Is faster and should be used for evaluation purposes
-    def step_sim_basic(self, action, learned_gains=None):
-
-        target = action + self.offset
-
-        if self.joint_rand:
-            target -= self.motor_encoder_noise
-
-        self.u = pd_in_t()
-        for i in range(5):
-
-            # TODO: move setting gains out of the loop?
-            # maybe write a wrapper for pd_in_t ?
-            if self.learn_gains is False:
-                self.u.leftLeg.motorPd.pGain[i]  = self.P[i]
-                self.u.rightLeg.motorPd.pGain[i] = self.P[i]
-                self.u.leftLeg.motorPd.dGain[i]  = self.D[i]
-                self.u.rightLeg.motorPd.dGain[i] = self.D[i]
-            else:
-                self.u.leftLeg.motorPd.pGain[i]  = self.P[i] + learned_gains[i]
-                self.u.rightLeg.motorPd.pGain[i] = self.P[i] + learned_gains[5+i]
-                self.u.leftLeg.motorPd.dGain[i]  = self.D[i] + learned_gains[10+i]
-                self.u.rightLeg.motorPd.dGain[i] = self.D[i] + learned_gains[15+i]
-
-            self.u.leftLeg.motorPd.torque[i]  = 0  # Feedforward torque
-            self.u.rightLeg.motorPd.torque[i] = 0
-
-            self.u.leftLeg.motorPd.pTarget[i]  = target[i]
-            self.u.rightLeg.motorPd.pTarget[i] = target[i + 5]
-
-            self.u.leftLeg.motorPd.dTarget[i]  = 0
-            self.u.rightLeg.motorPd.dTarget[i] = 0
-
-        self.cassie_state = self.sim.step_pd(self.u)
-
     def step(self, action, return_omniscient_state=False, f_term=0):
         
         if self.dynamics_randomization:
@@ -445,12 +320,8 @@ class CassieEnv:
         self.curr_action = action
 
         self.time  += 1
-        self.phase += self.phase_add
+        
 
-        if self.phase > self.phaselen:
-            self.last_pelvis_pos = self.sim.qpos()[0:3]
-            self.phase = 0
-            self.counter += 1
 
         # no more knee walking
         # if self.sim.xpos("left-tarsus")[2] < 0.1 or self.sim.xpos("right-tarsus")[2] < 0.1:
@@ -477,7 +348,7 @@ class CassieEnv:
         self.prev_torque = np.asarray(self.cassie_state.motor.torque[:])
 
         # TODO: make 0.3 a variable/more transparent
-        if reward < self.early_term_cutoff:
+        if reward < 0.3:
             done = True
 
         if np.random.randint(300) == 0:  # random changes to orientation
@@ -495,30 +366,6 @@ class CassieEnv:
         else:
             return self.get_full_state(), reward, done, {}
 
-    # More basic, faster version of step
-    def step_basic(self, action, return_omniscient_state=False):
-
-        if self.learn_gains:
-            action, learned_gains = action[0:10], action[10:]
-
-        for i in range(self.simrate):
-            if self.learn_gains:
-                self.step_sim_basic(action, learned_gains)
-            else:
-                self.step_sim_basic(action)
-
-        self.time  += 1
-        self.phase += self.phase_add
-
-        if self.phase > self.phaselen:
-            self.last_pelvis_pos = self.sim.qpos()[0:3]
-            self.phase = 0
-            self.counter += 1
-
-        if return_omniscient_state:
-            return self.get_full_state(), self.get_omniscient_state()
-        else:
-            return self.get_full_state()
 
     def reset(self):
 
@@ -526,39 +373,8 @@ class CassieEnv:
         self.side_speed = np.random.uniform(self.min_side_speed, self.max_side_speed)
 
         # Set up phase based
-        if self.command_profile == "phase":
-            if self.phase_input_mode == "library":
-                # constrain speed a bit further
-                self.speed = (random.randint(0, 30)) / 10
-                # library input -- pick total duration and swing/stance phase based on that. also randomize grounded vs aerial vs zero
-                total_duration = random.randint(3, 6) / 10  # this if for one swing and stance, so 2 * total_duration = walk cycle time
-                ratio = random.randint(2, 8) / 10
-                self.swing_duration = total_duration * ratio
-                self.stance_duration = total_duration - self.swing_duration
-                # also change stance mode
-                self.stance_mode = np.random.choice(["grounded", "aerial", "zero"])
-            else:
-                # random everything
-                self.swing_duration = random.randint(1, 50) / 100
-                self.stance_duration = random.randint(1, 30) / 100
-                self.stance_mode = np.random.choice(["grounded", "aerial", "zero"])
-            self.left_clock, self.right_clock, self.phaselen = create_phase_reward(self.swing_duration, self.stance_duration, self.strict_relaxer, self.stance_mode, self.have_incentive, FREQ=2000//self.simrate)
         # ELSE load in clock based reward func
-        elif self.reward_func == "load_clock":
-            pass
-        # ELSE use simple relationship to define swing and stance duration
-        else:
-            if self.reward_func == "switch_clock":
-                if self.speed < self.switch_speed:
-                    self.stance_mode = "grounded"
-                else:
-                    self.stance_mode = "aerial"
-            total_duration = (0.9 - 0.25 / 3.0 * abs(self.speed)) / 2
-            self.swing_duration = (0.30 + ((0.70 - 0.30) / 3) * abs(self.speed)) * total_duration
-            self.stance_duration = (0.70 - ((0.70 - 0.30) / 3) * abs(self.speed)) * total_duration
-            self.left_clock, self.right_clock, self.phaselen = create_phase_reward(self.swing_duration, self.stance_duration, self.strict_relaxer, self.stance_mode, self.have_incentive, FREQ=2000//self.simrate)
-
-        self.phase = random.randint(0, floor(self.phaselen))
+        
         self.time = 0
         self.counter = 0
 
@@ -679,110 +495,6 @@ class CassieEnv:
 
         return self.get_full_state()
 
-    def reset_for_test(self, full_reset=False):
-        self.phase = 0
-        self.time = 0
-        self.counter = 0
-        self.orient_add = 0
-        self.phase_add = 1
-
-        self.state_history = [np.zeros(self._obs) for _ in range(self.history+1)]
-
-        self.speed = 0
-
-        # load in clock based reward func
-        if self.reward_func == "load_clock":
-            pass
-        # ELSE use simple relationship to define swing and stance duration
-        else:
-            # variable inputs
-            self.swing_duration = 0.15
-            self.stance_duration = 0.25
-            self.stance_mode = "grounded"
-            self.left_clock, self.right_clock, self.phaselen = create_phase_reward(self.swing_duration, self.stance_duration, self.strict_relaxer, self.stance_mode, self.have_incentive, FREQ=2000//self.simrate)
-
-        if not full_reset:
-
-            # reset mujoco tracking variables
-            self.last_pelvis_pos = self.sim.qpos()[0:3]
-            self.l_foot_frc = 0
-            self.r_foot_frc = 0
-            self.l_foot_orient = 0
-            self.r_foot_orient = 0
-
-            # Need to reset u? Or better way to reset cassie_state than taking step
-            self.cassie_state = self.sim.step_pd(self.u)
-        else:
-            self.sim.full_reset()
-            self.reset_cassie_state()
-
-        if self.dynamics_randomization:
-            self.sim.set_dof_damping(self.default_damping)
-            self.sim.set_body_mass(self.default_mass)
-            self.sim.set_body_ipos(self.default_ipos)
-            self.sim.set_geom_friction(self.default_fric)
-            self.sim.set_const()
-
-        if self.slope_rand:
-            self.sim.set_geom_quat(np.array([1, 0, 0, 0]), "floor")
-
-        if self.joint_rand:
-            self.motor_encoder_noise = np.zeros(10)
-            self.joint_encoder_noise = np.zeros(6)
-
-        return self.get_full_state()
-
-    def reset_cassie_state(self):
-        # Only reset parts of cassie_state that is used in get_full_state
-        self.cassie_state.pelvis.position[:] = [0, 0, 1.01]
-        self.cassie_state.pelvis.orientation[:] = [1, 0, 0, 0]
-        self.cassie_state.pelvis.rotationalVelocity[:] = np.zeros(3)
-        self.cassie_state.pelvis.translationalVelocity[:] = np.zeros(3)
-        self.cassie_state.pelvis.translationalAcceleration[:] = np.zeros(3)
-        self.cassie_state.terrain.height = 0
-        self.cassie_state.motor.position[:] = [0.0045, 0, 0.4973, -1.1997, -1.5968, 0.0045, 0, 0.4973, -1.1997, -1.5968]
-        self.cassie_state.motor.velocity[:] = np.zeros(10)
-        self.cassie_state.joint.position[:] = [0, 1.4267, -1.5968, 0, 1.4267, -1.5968]
-        self.cassie_state.joint.velocity[:] = np.zeros(6)
-
-    # Helper function for updating the speed, used in visualization tests
-    # not needed in training cause we don't change speeds in middle of rollout, and
-    # we randomize the starting phase of each rollout
-    def update_speed(self, new_speed, new_side_speed=0.0):
-
-        self.speed = np.clip(new_speed, self.min_speed, self.max_speed)
-        self.side_speed = np.clip(new_side_speed, self.min_side_speed, self.max_side_speed)
-        
-        if self.command_profile == "phase":
-            self.swing_duration = max(0.01, self.swing_duration)
-            self.stance_duration = max(0.01, self.stance_duration)
-            old_phaselen = self.phaselen
-            self.set_up_phase_reward()
-            self.phase = int(self.phaselen * self.phase / old_phaselen)
-        else:
-            total_duration = (0.9 - 0.25 / 3.0 * self.speed) / 2
-            self.swing_duration = (0.30 + ((0.70 - 0.30) / 3) * self.speed) * total_duration
-            self.stance_duration = (0.70 - ((0.70 - 0.30) / 3) * self.speed) * total_duration
-            old_phaselen = self.phaselen
-            self.left_clock, self.right_clock, self.phaselen = create_phase_reward(self.swing_duration, self.stance_duration, self.strict_relaxer, self.stance_mode, self.have_incentive, FREQ=2000//self.simrate)
-            self.phase = int(self.phaselen * self.phase / old_phaselen)
-
-    def compute_reward(self, action):
-
-        if self.reward_func == "clock" or self.reward_func == "load_clock" or self.reward_func == "switch_clock":
-            self.early_term_cutoff = -99.
-            if self.early_reward:
-                return early_clock_reward(self, action)
-            else:
-                return clock_reward(self, action)
-        elif self.reward_func == "no_speed_clock":
-            self.early_term_cutoff = -99.
-            return no_speed_clock_reward(self, action)
-        elif self.reward_func == "max_vel_clock":
-            self.early_term_cutoff = -99.
-            return max_vel_clock_reward(self, action)
-        else:
-            raise NotImplementedError
 
     def get_full_state(self):
         qpos = np.copy(self.sim.qpos())
@@ -801,55 +513,30 @@ class CassieEnv:
         # trajectory despite being global coord. Y is only invariant to straight
         # line trajectories.
 
-        # command --> PHASE_BASED : clock, phase info, speed
-        if self.command_profile == "phase":
-            clock = [np.sin(2 * np.pi * self.phase / self.phaselen),
-                    np.cos(2 * np.pi * self.phase / self.phaselen)]
-            ext_state = np.concatenate((clock, [self.swing_duration, self.stance_duration], encode_stance_mode(self.stance_mode), [self.speed, self.side_speed]))
         # command --> CLOCK_BASED : clock, speed
-        elif self.command_profile == "clock":
-            clock = [np.sin(2 * np.pi * self.phase / self.phaselen),
-                    np.cos(2 * np.pi * self.phase / self.phaselen)]
-            ext_state = np.concatenate((clock, [self.speed, self.side_speed]))
-        else:
-            raise NotImplementedError
-
+        clock = [np.sin(2 * np.pi * self.phase / self.phaselen),
+                np.cos(2 * np.pi * self.phase / self.phaselen)]
+        ext_state = np.concatenate((clock, [self.speed, self.side_speed]))
+        
         # Update orientation
         new_orient = self.rotate_to_orient(self.cassie_state.pelvis.orientation[:])
         new_translationalVelocity = self.rotate_to_orient(self.cassie_state.pelvis.translationalVelocity[:])
         new_translationalAcceleleration = self.rotate_to_orient(self.cassie_state.pelvis.translationalAcceleration[:])
         
-        # motor and joint poses
-        if self.joint_rand:
-            motor_pos = self.cassie_state.motor.position[:] + self.motor_encoder_noise
-            joint_pos = self.cassie_state.joint.position[:] + self.joint_encoder_noise
-        else:
-            motor_pos = self.cassie_state.motor.position[:]
-            joint_pos = self.cassie_state.joint.position[:]
-
-        if self.input_profile == "min":
-            robot_state = np.concatenate([
-                self.cassie_state.leftFoot.position[:],             # left foot position
-                self.cassie_state.rightFoot.position[:],            # right foot position
-                new_orient,                                         # pelvis orientation
-                self.cassie_state.pelvis.rotationalVelocity[:],     # pelvis rotational velocity
-                self.cassie_state.leftFoot.orientation[:],          # left foot orientation
-                self.cassie_state.rightFoot.orientation[:]          # right foot orientation
-            ])
-        elif self.input_profile == "full":
-            robot_state = np.concatenate([
-                [self.cassie_state.pelvis.position[2] - self.cassie_state.terrain.height],  # pelvis height
-                new_orient,                                         # pelvis orientation
-                motor_pos,                                          # actuated joint positions
-                new_translationalVelocity,                          # pelvis translational velocity
-                self.cassie_state.pelvis.rotationalVelocity[:],     # pelvis rotational velocity
-                self.cassie_state.motor.velocity[:],                # actuated joint velocities
-                new_translationalAcceleleration,                    # pelvis translational acceleration
-                joint_pos,                                          # unactuated joint positions
-                self.cassie_state.joint.velocity[:]                 # unactuated joint velocities
-            ])
-        else:
-            raise NotImplementedError
+        motor_pos = self.cassie_state.motor.position[:] + self.motor_encoder_noise
+        joint_pos = self.cassie_state.joint.position[:] + self.joint_encoder_noise
+        
+        robot_state = np.concatenate([
+            [self.cassie_state.pelvis.position[2] - self.cassie_state.terrain.height],  # pelvis height
+            new_orient,                                         # pelvis orientation
+            motor_pos,                                          # actuated joint positions
+            new_translationalVelocity,                          # pelvis translational velocity
+            self.cassie_state.pelvis.rotationalVelocity[:],     # pelvis rotational velocity
+            self.cassie_state.motor.velocity[:],                # actuated joint velocities
+            new_translationalAcceleleration,                    # pelvis translational acceleration
+            joint_pos,                                          # unactuated joint positions
+            self.cassie_state.joint.velocity[:]                 # unactuated joint velocities
+        ])
 
         state = np.concatenate([robot_state, ext_state])
 
@@ -863,6 +550,141 @@ class CassieEnv:
             self.vis = CassieVis(self.sim, self.config)
 
         return self.vis.draw(self.sim)
+
+
+# Set up clock reward for loaded in phase functions
+    # def set_up_clock_reward(self, dirname):
+        
+    #     if "early" in self.reward_func:
+    #         self.early_reward = True
+
+    #     if "load" in self.reward_func:
+    #         self.reward_clock_func = load_reward_clock_funcs(os.path.join(dirname, "rewards", "reward_clock_funcs", self.reward_func + ".pkl"))
+    #         self.left_clock = self.reward_clock_func["left"]
+    #         self.right_clock = self.reward_clock_func["right"]
+    #         self.reward_func = "load_clock"
+    #     else:
+
+    #         if "grounded" in self.reward_func:
+    #             self.stance_mode = "grounded"
+    #         elif "aerial" in self.reward_func:
+    #             self.stance_mode = "aerial"
+    #         else:
+    #             self.stance_mode = "zero"
+
+    #         # Clock based rewards are organized as follows: "<approach>_<pkl-file-path>" where <approach> is either "" or "max_vel" or "switch"
+    #         # extract <approach> from reward string
+    #         if "max_vel" in self.reward_func:    
+    #             self.reward_func = "max_vel_clock"
+    #         elif "switch" in self.reward_func:
+    #             # switch from walking to running, where walking path is specified
+    #             self.switch_speed = 1.8
+    #             self.reward_func = "clock"
+    #         else:
+    #             # match commanded speed input. maybe constrained to walking or running or figuring out based on specified path
+    #             # approach = ""
+    #             self.reward_func = "clock"
+    # def reset_for_test(self, full_reset=False):
+    #     self.phase = 0
+    #     self.time = 0
+    #     self.counter = 0
+    #     self.orient_add = 0
+    #     self.phase_add = 1
+
+    #     self.state_history = [np.zeros(self._obs) for _ in range(self.history+1)]
+
+    #     self.speed = 0
+
+    #     # load in clock based reward func
+    #     if self.reward_func == "load_clock":
+    #         pass
+    #     # ELSE use simple relationship to define swing and stance duration
+    #     else:
+    #         # variable inputs
+    #         self.swing_duration = 0.15
+    #         self.stance_duration = 0.25
+    #         self.stance_mode = "grounded"
+    #         self.left_clock, self.right_clock, self.phaselen = create_phase_reward(self.swing_duration, self.stance_duration, self.strict_relaxer, self.stance_mode, self.have_incentive, FREQ=2000//self.simrate)
+
+    #     if not full_reset:
+
+    #         # reset mujoco tracking variables
+    #         self.last_pelvis_pos = self.sim.qpos()[0:3]
+    #         self.l_foot_frc = 0
+    #         self.r_foot_frc = 0
+    #         self.l_foot_orient = 0
+    #         self.r_foot_orient = 0
+
+    #         # Need to reset u? Or better way to reset cassie_state than taking step
+    #         self.cassie_state = self.sim.step_pd(self.u)
+    #     else:
+    #         self.sim.full_reset()
+    #         self.reset_cassie_state()
+
+    #     if self.dynamics_randomization:
+    #         self.sim.set_dof_damping(self.default_damping)
+    #         self.sim.set_body_mass(self.default_mass)
+    #         self.sim.set_body_ipos(self.default_ipos)
+    #         self.sim.set_geom_friction(self.default_fric)
+    #         self.sim.set_const()
+
+    #     if self.slope_rand:
+    #         self.sim.set_geom_quat(np.array([1, 0, 0, 0]), "floor")
+
+    #     if self.joint_rand:
+    #         self.motor_encoder_noise = np.zeros(10)
+    #         self.joint_encoder_noise = np.zeros(6)
+
+    #     return self.get_full_state()
+
+
+
+
+# Set up phase reward for dynamic phase functions
+    # def set_up_phase_reward(self):
+
+    #     if "early" in self.reward_func:
+    #         self.early_reward = True
+
+    #     if "library" in self.reward_func:
+    #         self.phase_input_mode = "library"
+    #     else:
+    #         self.phase_input_mode = None  # Vary all parts of input
+
+    #     if "no_speed" in self.reward_func:
+    #         self.reward_func = "no_speed_clock"
+    #     else:
+    #         self.reward_func = "clock"
+
+    # def compute_reward(self, action):
+
+    #     if self.reward_func == "clock" or self.reward_func == "load_clock" or self.reward_func == "switch_clock":
+            
+    #         if self.early_reward:
+    #             return early_clock_reward(self, action)
+    #         else:
+    #             return clock_reward(self, action)
+    #     elif self.reward_func == "no_speed_clock":
+            
+    #         return no_speed_clock_reward(self, action)
+    #     elif self.reward_func == "max_vel_clock":
+            
+    #         return max_vel_clock_reward(self, action)
+    #     else:
+    #         raise NotImplementedError
+
+    # def reset_cassie_state(self):
+    #     # Only reset parts of cassie_state that is used in get_full_state
+    #     self.cassie_state.pelvis.position[:] = [0, 0, 1.01]
+    #     self.cassie_state.pelvis.orientation[:] = [1, 0, 0, 0]
+    #     self.cassie_state.pelvis.rotationalVelocity[:] = np.zeros(3)
+    #     self.cassie_state.pelvis.translationalVelocity[:] = np.zeros(3)
+    #     self.cassie_state.pelvis.translationalAcceleration[:] = np.zeros(3)
+    #     self.cassie_state.terrain.height = 0
+    #     self.cassie_state.motor.position[:] = [0.0045, 0, 0.4973, -1.1997, -1.5968, 0.0045, 0, 0.4973, -1.1997, -1.5968]
+    #     self.cassie_state.motor.velocity[:] = np.zeros(10)
+    #     self.cassie_state.joint.position[:] = [0, 1.4267, -1.5968, 0, 1.4267, -1.5968]
+    #     self.cassie_state.joint.velocity[:] = np.zeros(6)
 
 
 # Currently unused
