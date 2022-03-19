@@ -253,7 +253,7 @@ class CassieEnv(gym.Env):
         return obs, reward, done, {}
 
     def reset(self):
-        print('----reset----')
+        # print('----reset----')
         self.speed = 4.0 # np.random.uniform(self.min_speed, self.max_speed)
         self.side_speed = 0.0 # np.random.uniform(self.min_side_speed, self.max_side_speed)
 
