@@ -15,7 +15,7 @@ def make_env(env_id):
     return _f
 
 if __name__ == '__main__':
-    envs =[make_env(seed) for seed in range(3)]
+    envs =[make_env(seed) for seed in range(16)]
     envs = SubprocVecEnv(envs)
 
     class TensorboardCallback(BaseCallback):
@@ -26,11 +26,12 @@ if __name__ == '__main__':
             super(TensorboardCallback, self).__init__(verbose)
 
         def _on_step(self) -> bool:                
-            self.logger.record('reward/height', self.training_env.get_attr('qpos')[0][2])
+            self.logger.record('reward/height', self.training_env.get_attr('rew_height')[0])
+            self.logger.record('reward/joint', self.training_env.get_attr('rew_joint')[0])
             return True
 
-    model = PPO("MlpPolicy", envs, verbose=1, n_steps=500,
-        batch_size=128,tensorboard_log="./ppolog/")
+    model = PPO("MlpPolicy", envs, verbose=1, n_steps=1024,
+        batch_size=256,tensorboard_log="./ppolog/")
     model.is_tb_set = False
 
     model.learn(total_timesteps=1e7,n_eval_episodes=10,callback=TensorboardCallback())

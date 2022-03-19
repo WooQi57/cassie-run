@@ -337,13 +337,13 @@ class CassieEnv(gym.Env):
             self.sim.set_dof_damping(self.default_damping)
             self.sim.set_geom_friction(self.default_fric)
 
-        if self.dynamics_randomization:
-            geom_plane = [np.random.uniform(-self.max_roll_incline, self.max_roll_incline), np.random.uniform(-self.max_pitch_incline, self.max_pitch_incline), 0]
-            quat_plane   = euler2quat(z=geom_plane[2], y=geom_plane[1], x=geom_plane[0])
-            geom_quat  = list(quat_plane) + list(self.default_quat[4:])
-            self.sim.set_geom_quat(geom_quat)
-        else:
-            self.sim.set_geom_quat(self.default_quat)
+        # if self.dynamics_randomization:
+        #     geom_plane = [np.random.uniform(-self.max_roll_incline, self.max_roll_incline), np.random.uniform(-self.max_pitch_incline, self.max_pitch_incline), 0]
+        #     quat_plane   = euler2quat(z=geom_plane[2], y=geom_plane[1], x=geom_plane[0])
+        #     geom_quat  = list(quat_plane) + list(self.default_quat[4:])
+        #     self.sim.set_geom_quat(geom_quat)
+        # else:
+        self.sim.set_geom_quat(self.default_quat)
     
         # # reset mujoco tracking variables
         # self.l_foot_frc = 0
@@ -426,13 +426,16 @@ class CassieEnv(gym.Env):
         # return self.observation_space
 
     def compute_reward(self, action):
+        height = self.qpos[2]
         joint_penalty = np.sum(action * action)
         orientation_penalty = (self.qpos[4])**2+(self.qpos[5])**2+(self.qpos[6])**2
         vel_penalty = (self.speed - self.qvel[0])**2 + (self.side_speed - self.qvel[1])**2 + (self.qvel[2])**2
         spring_penalty = (self.sim.qpos()[15])**2+(self.sim.qpos()[29])**2
         spring_penalty *= 1000
-        reward = 0.5*np.exp(-joint_penalty)+0.3*np.exp(-vel_penalty)+0.1*np.exp(-orientation_penalty)+0.1*np.exp(-spring_penalty)
-
+        # reward = 0.5*np.exp(-joint_penalty)+0.3*np.exp(-vel_penalty)+0.1*np.exp(-orientation_penalty)+0.1*np.exp(-spring_penalty)
+        self.rew_height = 0.7 * height
+        self.rew_joint = 0.1*np.exp(-joint_penalty)
+        reward = self.rew_height + self.rew_joint
         return reward
 
     def render(self):        
