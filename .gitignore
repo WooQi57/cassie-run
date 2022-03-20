@@ -7,6 +7,7 @@ sim-to-real/
 cassie/cassieIK_SL.pt
 cassie/taskspace_to_jointpos.pt
 .vscode/
+ppolog/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

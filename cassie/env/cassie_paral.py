@@ -3,19 +3,19 @@ import gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
-from cassie import CassieEnv
+from cassie import CassieRefEnv
 
 def make_env(env_id):
     def _f():
         if env_id == 0:
-            env = CassieEnv(visual=True)
+            env = CassieRefEnv(visual=True)
         else:
-            env = CassieEnv(visual=False)
+            env = CassieRefEnv(visual=False)
         return env
     return _f
 
 if __name__ == '__main__':
-    envs =[make_env(seed) for seed in range(16)]
+    envs =[make_env(seed) for seed in range(1)]
     envs = SubprocVecEnv(envs)
 
     class TensorboardCallback(BaseCallback):
@@ -26,8 +26,10 @@ if __name__ == '__main__':
             super(TensorboardCallback, self).__init__(verbose)
 
         def _on_step(self) -> bool:                
-            self.logger.record('reward/height', self.training_env.get_attr('rew_height')[0])
-            self.logger.record('reward/joint', self.training_env.get_attr('rew_joint')[0])
+            self.logger.record('reward/ref', self.training_env.get_attr('rew_ref')[0])
+            self.logger.record('reward/spring', self.training_env.get_attr('rew_spring')[0])
+            self.logger.record('reward/orientation', self.training_env.get_attr('rew_ori')[0])
+            self.logger.record('reward/velocity', self.training_env.get_attr('rew_vel')[0])
             return True
 
     model = PPO("MlpPolicy", envs, verbose=1, n_steps=1024,
