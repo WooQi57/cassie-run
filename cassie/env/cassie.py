@@ -483,13 +483,13 @@ class CassieRefEnv(gym.Env):
         self.joint_encoder_noise = np.zeros(6)
 
     def step_simulation(self,action):
-        # target = action + self.offset
+        target = action + self.offset
         # target -= self.motor_encoder_noise
 
         pos_index = [7, 8, 9, 14, 20, 21, 22, 23, 28, 34]
         ref_pos, ref_vel = self.get_kin_next_state()
         
-        target = action + ref_pos[pos_index]
+        # target = action + ref_pos[pos_index]
 
         self.u = pd_in_t()
         
@@ -629,15 +629,15 @@ class CassieRefEnv(gym.Env):
     
         self.sim.set_const()
 
-        return self.get_state()
+        # return self.get_state()
         # # xie's code:
-        # self.phase = random.randint(0, 27)
-		# self.time = 0
-		# self.counter = 0
-		# qpos, qvel = self.get_kin_state()
-		# self.sim.set_qpos(qpos)
-		# self.sim.set_qvel(qvel)
-		# return self.get_state()
+        self.phase = random.randint(0, 27)
+		self.time = 0
+		self.counter = 0
+		qpos, qvel = self.get_kin_state()
+		self.sim.set_qpos(qpos)
+		self.sim.set_qvel(qvel)
+		return self.get_state()
 
 
     def get_state(self):
@@ -707,7 +707,7 @@ class CassieRefEnv(gym.Env):
         self.rew_ref = 0.5*np.exp(-ref_penalty)
         self.rew_spring = 0.1*np.exp(-spring_penalty)
         self.rew_ori = 0.1*np.exp(-orientation_penalty)
-        self.rew_vel = 0.3*np.exp(-com_penalty)
+        self.rew_vel = 0.3*np.exp(-vel_penalty)
         self.rew_termin = -10 * self.termination 
         reward = self.rew_ref + self.rew_spring + self.rew_ori + self.rew_vel + self.rew_termin
         return reward

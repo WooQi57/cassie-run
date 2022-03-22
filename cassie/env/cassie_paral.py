@@ -1,3 +1,4 @@
+from random import random
 import gym
 import torch
 from stable_baselines3 import PPO
@@ -8,9 +9,9 @@ from cassie import CassieRefEnv
 def make_env(env_id):
     def _f():
         if env_id == 0:
-            env = CassieRefEnv(visual=True)
+            env = CassieRefEnv(visual=False, dynamics_randomization=False)
         else:
-            env = CassieRefEnv(visual=False)
+            env = CassieRefEnv(visual=False, dynamics_randomization=False)
         return env
     return _f
 
