@@ -30,14 +30,15 @@ if __name__ == '__main__':
             self.logger.record('reward/spring', self.training_env.get_attr('rew_spring')[0])
             self.logger.record('reward/orientation', self.training_env.get_attr('rew_ori')[0])
             self.logger.record('reward/velocity', self.training_env.get_attr('rew_vel')[0])
+            self.logger.record('reward/termination', self.training_env.get_attr('rew_termin')[0])
             if self.n_calls % 102400 == 0:
                 print("Saving new best model")
                 self.model.save(f"./model_saved/ppo_cassie_{self.n_calls}")
             return True
 
-    policy_kwargs = dict(activation_fn=torch.nn.Tanh,
+    policy_kwargs = dict(activation_fn=torch.nn.ReLU,
                      net_arch=[dict(pi=[256, 256], vf=[256, 256])])
-    model = PPO("MlpPolicy", envs, verbose=1, n_steps=1024, policy_kwargs=policy_kwargs,
+    model = PPO("MlpPolicy", envs, verbose=1, n_steps=512, policy_kwargs=policy_kwargs,
         batch_size=256,tensorboard_log="./ppolog/")
     model.is_tb_set = False
 

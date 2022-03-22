@@ -432,6 +432,7 @@ class CassieRefEnv(gym.Env):
             self.vis = CassieVis(self.sim)
         
         self.dynamics_randomization = dynamics_randomization
+        self.termination = False
 
         # Observation space and State space
         self.observation_space = spaces.Box(low=-np.inf,high=np.inf,shape=(80,))
@@ -521,13 +522,14 @@ class CassieRefEnv(gym.Env):
         if self.phase >= 28:
             self.phase = 0
             self.counter +=1
-
-        done = height < 0.4 or height > 3.0 or self.time >= self.time_limit
+        self.termination = height < 0.6 or height > 1.2
+        done = self.termination or self.time >= self.time_limit
             
         if self.visual:
             self.render()
         reward = self.compute_reward(action)
-        
+        if reward < 0.3:
+            done = True
         return obs, reward, done, {}
 
     def reset(self):
@@ -538,6 +540,7 @@ class CassieRefEnv(gym.Env):
 
         self.time = 0
         self.counter = 0
+        self.termination = False
 
         # Randomize dynamics:
         if self.dynamics_randomization:
@@ -705,8 +708,8 @@ class CassieRefEnv(gym.Env):
         self.rew_spring = 0.1*np.exp(-spring_penalty)
         self.rew_ori = 0.1*np.exp(-orientation_penalty)
         self.rew_vel = 0.3*np.exp(-com_penalty)
-
-        reward = self.rew_ref + self.rew_spring + self.rew_ori + self.rew_vel 
+        self.rew_termin = -10 * self.termination 
+        reward = self.rew_ref + self.rew_spring + self.rew_ori + self.rew_vel + self.rew_termin
         return reward
 
     def render(self):        
