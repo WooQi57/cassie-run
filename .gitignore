@@ -9,6 +9,7 @@ cassie/taskspace_to_jointpos.pt
 .vscode/
 ppolog/
 *.code-workspace
+test.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
