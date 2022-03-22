@@ -3,7 +3,6 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
 from cassie import CassieRefEnv
 
 def make_env(env_id):
@@ -32,10 +31,10 @@ if __name__ == '__main__':
             self.logger.record('reward/orientation', self.training_env.get_attr('rew_ori')[0])
             self.logger.record('reward/velocity', self.training_env.get_attr('rew_vel')[0])
             self.logger.record('reward/termination', self.training_env.get_attr('rew_termin')[0])
+
             if self.n_calls % 51200 == 0:
                 print("Saving new best model")
                 self.model.save(f"./model_saved/ppo_cassie_{self.n_calls}")
-
 
             return True
 
@@ -47,5 +46,4 @@ if __name__ == '__main__':
 
     model.learn(total_timesteps=1e7,n_eval_episodes=10,callback=TensorboardCallback())
     model.save("ppo_cassie")
-
 

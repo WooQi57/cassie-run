@@ -1,1 +1,2 @@
 eventually, I will use folder env only with cassiemujoco in it
+for now, I need to use cassieRLEnv.py and loadstep.py to use reference from binary files

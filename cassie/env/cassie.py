@@ -485,7 +485,6 @@ class CassieRefEnv(gym.Env):
     def step_simulation(self,action):
         target = action + self.offset
         # target -= self.motor_encoder_noise
-
         # pos_index = [7, 8, 9, 14, 20, 21, 22, 23, 28, 34]
         # ref_pos, ref_vel = self.get_kin_next_state()
         # target = action + ref_pos[pos_index]

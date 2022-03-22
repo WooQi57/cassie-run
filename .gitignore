@@ -7,7 +7,11 @@ sim-to-real/
 cassie/cassieIK_SL.pt
 cassie/taskspace_to_jointpos.pt
 .vscode/
-
+ppolog/
+trash/
+*.code-workspace
+test.txt
+model_saved/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -15,7 +19,7 @@ __pycache__/
 
 # C extensions
 *.so
-!libcassiemujoco.so
+
 
 # Distribution / packaging
 .Python
