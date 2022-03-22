@@ -9,9 +9,9 @@ cassie/taskspace_to_jointpos.pt
 .vscode/
 ppolog/
 trash/
-*.code-workspace
 test.txt
 model_saved/
+*.code-workspace
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
