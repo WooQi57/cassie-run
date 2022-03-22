@@ -1,0 +1,9 @@
+3.22 tue 19:19 
+0. test: termination reward works
+1. modification @ line 486 - no residual: target = action + self.offset instead of + ref
+1. test: modification 1 no harm
+2. modification @ line 709 - velo tracking: replace com_penalty with vel_penalty
+2. test: modification 2 no harm
+3. find: if trained with domain randomization, better play with domain randomization
+4. modification - domain randomization: train without domain randomization
+4. test: 
