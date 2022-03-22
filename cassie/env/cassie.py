@@ -533,7 +533,7 @@ class CassieRefEnv(gym.Env):
     def reset(self):
         self.phase = 0
         # self.phase = random.randint(0,27)
-        self.speed = 4.0 # np.random.uniform(self.min_speed, self.max_speed)
+        self.speed = 0.7 # np.random.uniform(self.min_speed, self.max_speed)
         self.side_speed = 0.0 # np.random.uniform(self.min_side_speed, self.max_side_speed)
 
         self.time = 0
@@ -704,7 +704,7 @@ class CassieRefEnv(gym.Env):
         self.rew_ref = 0.5*np.exp(-ref_penalty)
         self.rew_spring = 0.1*np.exp(-spring_penalty)
         self.rew_ori = 0.1*np.exp(-orientation_penalty)
-        self.rew_vel = 0.3*np.exp(-vel_penalty)
+        self.rew_vel = 0.3*np.exp(-com_penalty)
 
         reward = self.rew_ref + self.rew_spring + self.rew_ori + self.rew_vel 
         return reward
