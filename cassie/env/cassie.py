@@ -729,3 +729,64 @@ class CassieRefEnv(gym.Env):
         pose[0] += (self.trajectory.qpos[1681, 0]- self.trajectory.qpos[0, 0])* self.counter
         pose[1] = 0
         return pose, vel
+
+
+class CassieRefBuf(CassieRefEnv):
+    def __init__(self, simrate=60, dynamics_randomization=True,
+                 visual=True, config="./model/cassie.xml", delay=True, **kwargs):
+        super.__init__(simrate=60, dynamics_randomization=True,
+                 visual=True, config="./model/cassie.xml")
+        self.delay = delay        
+        self.state_buffer = []
+        self.buffer_size = 3
+        self.observation_space = spaces.Box(low=-np.inf,high=np.inf,shape=(self.buffer_size*40+40,))
+        
+    
+    def get_state(self):
+        self.qpos = np.copy(self.sim.qpos())  # dim=35 see cassiemujoco.h for details
+        self.qvel = np.copy(self.sim.qvel())  # dim=32
+        self.state_buffer.append((self.qpos, self.qvel))
+        
+        if len(self.state_buffer) > self.buffer_size:
+            self.state_buffer.pop(0)
+        else:
+            while len(self.state_buffer) < self.buffer_size:
+                self.state_buffer.append((self.qpos, self.qvel))
+
+        pos = np.array([x[0] for x in self.state_buffer])
+        vel = np.array([x[1] for x in self.state_buffer])
+
+        self.ref_pos, self.ref_vel = self.get_kin_next_state()
+
+        '''
+		Position [1], [2] 				-> Pelvis y, z
+				 [3], [4], [5], [6] 	-> Pelvis Orientation qw, qx, qy, qz
+				 [7], [8], [9]			-> Left Hip Roll (Motor[0]), Yaw (Motor[1]), Pitch (Motor[2])
+				 [14]					-> Left Knee   	(Motor[3])
+				 [15]					-> Left Shin   	(Joint[0])
+				 [16]					-> Left Tarsus 	(Joint[1])
+				 [20]					-> Left Foot   	(Motor[4], Joint[2])
+				 [21], [22], [23]		-> Right Hip Roll (Motor[5]), Yaw (Motor[6]), Pitch (Motor[7])
+				 [28]					-> Rigt Knee   	(Motor[8])
+				 [29]					-> Rigt Shin   	(Joint[3])
+				 [30]					-> Rigt Tarsus 	(Joint[4])
+				 [34]					-> Rigt Foot   	(Motor[9], Joint[5])
+		'''
+        pos_index = np.array([1,2,3,4,5,6,7,8,9,14,15,16,20,21,22,23,28,29,30,34])
+        '''
+		Velocity [0], [1], [2] 			-> Pelvis x, y, z
+				 [3], [4], [5]		 	-> Pelvis Orientation wx, wy, wz
+				 [6], [7], [8]			-> Left Hip Roll (Motor[0]), Yaw (Motor[1]), Pitch (Motor[2])
+				 [12]					-> Left Knee   	(Motor[3])
+				 [13]					-> Left Shin   	(Joint[0])
+				 [14]					-> Left Tarsus 	(Joint[1])
+				 [18]					-> Left Foot   	(Motor[4], Joint[2])
+				 [19], [20], [21]		-> Right Hip Roll (Motor[5]), Yaw (Motor[6]), Pitch (Motor[7])
+				 [25]					-> Rigt Knee   	(Motor[8])
+				 [26]					-> Rigt Shin   	(Joint[3])
+				 [27]					-> Rigt Tarsus 	(Joint[4])
+				 [31]					-> Rigt Foot   	(Motor[9], Joint[5])
+		'''
+        vel_index = np.array([0,1,2,3,4,5,6,7,8,12,13,14,18,19,20,21,25,26,27,31])
+        
+        return np.concatenate([pos[:,pos_index].reshape(-1), vel[:,vel_index].reshape(-1), self.ref_pos[pos_index], self.ref_vel[vel_index]])

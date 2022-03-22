@@ -7,10 +7,10 @@ sim-to-real/
 cassie/cassieIK_SL.pt
 cassie/taskspace_to_jointpos.pt
 .vscode/
-ppolog/
-trash/
+cassie/env/ppolog/*
+cassie/env/trash/*
 test.txt
-model_saved/
+cassie/env/model_saved/*
 *.code-workspace
 # Byte-compiled / optimized / DLL files
 __pycache__/
