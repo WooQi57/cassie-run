@@ -735,8 +735,16 @@ class CassieRefEnv(gym.Env):
         rew_ori = 0.1*np.exp(-orientation_penalty)
         rew_vel = 0.3*np.exp(-vel_penalty)
         rew_termin = -10 * self.termination
-        reward = rew_ref + rew_spring + rew_ori + rew_vel + rew_termin
+        # reward = rew_ref + rew_spring + rew_ori + rew_vel + rew_termin
         
+        # ada
+        R_star = 1
+        Rp = (0.75 * np.exp(-vel_penalty) + 0.25 * np.exp(-orientation_penalty))/ R_star
+        Ri = np.exp(-ref_penalty) / R_star
+        omega = np.square(4 * Ri - 3 * Rp) * (Rp<Ri) + Rp * (Rp>=Ri)
+        omega = np.clip(omega, 0, 1.5)
+        reward = (1 - omega) * Ri + omega * Rp + rew_spring + rew_termin
+
         self.rew_ref += rew_ref
         self.rew_spring += rew_spring
         self.rew_ori += rew_ori
