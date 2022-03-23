@@ -8,14 +8,14 @@ from cassie import CassieRefEnv
 def make_env(env_id):
     def _f():
         if env_id == 0:
-            env = CassieRefEnv(visual=True, dynamics_randomization=False)
+            env = CassieRefEnv(visual=False, dynamics_randomization=False)
         else:
             env = CassieRefEnv(visual=False, dynamics_randomization=False)
         return env
     return _f
 
 if __name__ == '__main__':
-    envs =[make_env(seed) for seed in range(1)]
+    envs =[make_env(seed) for seed in range(16)]
     envs = SubprocVecEnv(envs)
 
     class TensorboardCallback(BaseCallback):
@@ -40,7 +40,7 @@ if __name__ == '__main__':
             return True
 
     policy_kwargs = dict(activation_fn=torch.nn.ReLU,
-                     net_arch=[dict(pi=[256, 256], vf=[256, 256])])
+                     net_arch=[dict(pi=[512, 512], vf=[512, 512])])
     model = PPO("MlpPolicy", envs, verbose=1, n_steps=512, policy_kwargs=policy_kwargs,
         batch_size=256,tensorboard_log="./ppolog/")
     model.is_tb_set = False
