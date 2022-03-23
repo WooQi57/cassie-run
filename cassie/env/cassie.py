@@ -545,13 +545,14 @@ class CassieRefEnv(gym.Env):
         return obs, reward, done, {}
 
     def reset(self):
-        self.rew_ref_buf = self.rew_ref
-        self.rew_spring_buf = self.rew_spring
-        self.rew_ori_buf = self.rew_ori
-        self.rew_vel_buf = self.rew_vel
-        self.rew_termin_buf = self.rew_termin
-        self.reward_buf = self.reward
-
+        self.rew_ref_buf = self.rew_ref / self.time
+        self.rew_spring_buf = self.rew_spring / self.time
+        self.rew_ori_buf = self.rew_ori / self.time
+        self.rew_vel_buf = self.rew_vel / self.time
+        self.rew_termin_buf = self.rew_termin / self.time
+        self.reward_buf = self.reward / self.time
+        self.time_buf = self.time
+        
         self.rew_ref = 0
         self.rew_spring = 0
         self.rew_ori = 0

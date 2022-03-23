@@ -31,6 +31,7 @@ if __name__ == '__main__':
             self.logger.record('reward/orientation', self.training_env.get_attr('rew_ori_buf')[0])
             self.logger.record('reward/velocity', self.training_env.get_attr('rew_vel_buf')[0])
             self.logger.record('reward/termination', self.training_env.get_attr('rew_termin_buf')[0])
+            self.logger.record('reward/steps', self.training_env.get_attr('time_buf')[0])
             self.logger.record('reward/totalreward', self.training_env.get_attr('reward_buf')[0])
 
             if self.n_calls % 51200 == 0:
