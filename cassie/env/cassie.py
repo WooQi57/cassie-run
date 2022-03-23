@@ -482,6 +482,20 @@ class CassieRefEnv(gym.Env):
         self.motor_encoder_noise = np.zeros(10)
         self.joint_encoder_noise = np.zeros(6)
 
+        # rew_buf
+        self.rew_ref = 0
+        self.rew_spring = 0
+        self.rew_ori = 0
+        self.rew_vel = 0
+        self.rew_termin = 0
+        self.reward = 0
+        self.rew_ref_buf = 0
+        self.rew_spring_buf = 0
+        self.rew_ori_buf = 0
+        self.rew_vel_buf = 0
+        self.rew_termin_buf = 0
+        self.reward_buf = 0
+
     def step_simulation(self,action):
         target = action + self.offset
         # target -= self.motor_encoder_noise
@@ -531,6 +545,20 @@ class CassieRefEnv(gym.Env):
         return obs, reward, done, {}
 
     def reset(self):
+        self.rew_ref_buf = self.rew_ref
+        self.rew_spring_buf = self.rew_spring
+        self.rew_ori_buf = self.rew_ori
+        self.rew_vel_buf = self.rew_vel
+        self.rew_termin_buf = self.rew_termin
+        self.reward_buf = self.reward
+
+        self.rew_ref = 0
+        self.rew_spring = 0
+        self.rew_ori = 0
+        self.rew_vel = 0
+        self.rew_termin = 0
+        self.reward = 0
+
         self.phase = 0
         # self.phase = random.randint(0,27)
         self.speed = 0.7 # np.random.uniform(self.min_speed, self.max_speed)
@@ -702,12 +730,20 @@ class CassieRefEnv(gym.Env):
         spring_penalty *= 1000
         
         # reward = 0.5*np.exp(-ref_penalty)+0.3*np.exp(-vel_penalty)+0.1*np.exp(-orientation_penalty)+0.1*np.exp(-spring_penalty)
-        self.rew_ref = 0.5*np.exp(-ref_penalty)
-        self.rew_spring = 0.1*np.exp(-spring_penalty)
-        self.rew_ori = 0.1*np.exp(-orientation_penalty)
-        self.rew_vel = 0.3*np.exp(-vel_penalty)
-        self.rew_termin = -10 * self.termination
-        reward = self.rew_ref + self.rew_spring + self.rew_ori + self.rew_vel + self.rew_termin
+        rew_ref = 0.5*np.exp(-ref_penalty)
+        rew_spring = 0.1*np.exp(-spring_penalty)
+        rew_ori = 0.1*np.exp(-orientation_penalty)
+        rew_vel = 0.3*np.exp(-vel_penalty)
+        rew_termin = -10 * self.termination
+        reward = rew_ref + rew_spring + rew_ori + rew_vel + rew_termin
+        
+        self.rew_ref += rew_ref
+        self.rew_spring += rew_spring
+        self.rew_ori += rew_ori
+        self.rew_vel += rew_vel
+        self.rew_termin += rew_termin
+        self.reward += reward
+
         return reward
 
     def render(self):        
