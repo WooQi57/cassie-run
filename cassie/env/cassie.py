@@ -540,8 +540,8 @@ class CassieRefEnv(gym.Env):
         if self.visual:
             self.render()
         reward = self.compute_reward(action)
-        if reward < 0.3:
-            done = True
+        # if reward < 0.3:
+        #     done = True
         return obs, reward, done, {}
 
     def reset(self):
@@ -736,8 +736,8 @@ class CassieRefEnv(gym.Env):
         rew_vel = 0.3*np.exp(-vel_penalty)
         rew_termin = -10 * self.termination
         # reward = rew_ref + rew_spring + rew_ori + rew_vel + rew_termin
-        
-        # ada
+         
+        # ada algo
         R_star = 1
         Rp = (0.75 * np.exp(-vel_penalty) + 0.25 * np.exp(-orientation_penalty))/ R_star
         Ri = np.exp(-ref_penalty) / R_star
