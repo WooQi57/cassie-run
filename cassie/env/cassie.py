@@ -450,6 +450,7 @@ class CassieRefEnv(gym.Env):
         self.counter = 0        # number of phase cycles completed in episode
         self.time_limit = 400
         self.offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -1.1997, -1.5968])
+        self.time_buf = 0
         
         self.max_speed = 4.0
         self.min_speed = -0.3
@@ -545,13 +546,14 @@ class CassieRefEnv(gym.Env):
         return obs, reward, done, {}
 
     def reset(self):
-        self.rew_ref_buf = self.rew_ref / self.time
-        self.rew_spring_buf = self.rew_spring / self.time
-        self.rew_ori_buf = self.rew_ori / self.time
-        self.rew_vel_buf = self.rew_vel / self.time
-        self.rew_termin_buf = self.rew_termin / self.time
-        self.reward_buf = self.reward / self.time
-        self.time_buf = self.time
+        if self.time != 0 :
+            self.rew_ref_buf = self.rew_ref / self.time
+            self.rew_spring_buf = self.rew_spring / self.time
+            self.rew_ori_buf = self.rew_ori / self.time
+            self.rew_vel_buf = self.rew_vel / self.time
+            self.rew_termin_buf = self.rew_termin / self.time
+            self.reward_buf = self.reward / self.time
+            self.time_buf = self.time
         
         self.rew_ref = 0
         self.rew_spring = 0

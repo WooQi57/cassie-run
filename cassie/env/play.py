@@ -10,7 +10,7 @@ from cassie import CassieRefEnv
 
 if __name__ == '__main__':
     t = time.monotonic()
-    model = PPO.load("model_saved/ppo_cassie_"+str(512 * 4)+"00")
+    model = PPO.load("model_saved/ppo_cassie_"+str(512 * 12)+"00")
     # model = PPO.load("ppo_cassie")
     cassie = CassieRefEnv(dynamics_randomization=False)
     obs = cassie.reset()
