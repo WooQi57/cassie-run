@@ -4,16 +4,17 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
-from cassie import CassieRefEnv
+from cassie import CassieRefBuf
 
 
 
 if __name__ == '__main__':
     t = time.monotonic()
-    model = PPO.load("model_saved/ppo_cassie_"+str(512 * 12)+"00")
+    model = PPO.load("model_saved/ppo_cassie_"+str(512 * 2)+"00")
     # model = PPO.load("ppo_cassie")
-    cassie = CassieRefEnv(dynamics_randomization=False)
+    cassie = CassieRefBuf(dynamics_randomization=False)
     obs = cassie.reset()
+    print(obs.shape)
     # print(obs)
     while True:
         action, _states = model.predict(obs)
