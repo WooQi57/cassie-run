@@ -141,9 +141,9 @@ class CassieRefEnv(gym.Env):
         self.sim.foot_pos(self.foot_pos)
 
         xpos, ypos, height = self.qpos[0], self.qpos[1], self.qpos[2]
-        # xtarget, ytarget, ztarget = self.ref_pos[0], self.ref_pos[1], self.ref_pos[2] 
-        # pos2target = (xpos-xtarget)**2 + (ypos-ytarget)**2 + (height-ztarget)**2
-        self.termination = height < 0.6 or height > 1.2 # or  pos2target > 0.8**2
+        xtarget, ytarget, ztarget = self.ref_pos[0], self.ref_pos[1], self.ref_pos[2] 
+        pos2target = (xpos-xtarget)**2 + (ypos-ytarget)**2 + (height-ztarget)**2
+        self.termination = height < 0.6 or height > 1.2 or  pos2target > 0.8**2
         done = self.termination or self.time >= self.time_limit
             
         if self.visual:
@@ -362,9 +362,9 @@ class CassieRefEnv(gym.Env):
         # omega = 0.5
         R_star = 1
         Rp = (0.75 * np.exp(-vel_penalty) + 0.25 * np.exp(-orientation_penalty))/ R_star
-        # Rp = (Rp-0.2)/(1.0-0.2)# 0.6 - 1 # norm 
+        Rp = (Rp-0.2)/(1.0-0.2)# 0.2 - 1 # norm 
         Ri = np.exp(-ref_penalty) / R_star
-        # Ri = (Ri-0.2)/(1.0-0.2) # 0.6 - 1 # norm
+        Ri = (Ri-0.2)/(1.0-0.2) # 0.2 - 1 # norm
         # omega = max(Ri,Rp)
         # omega = np.clip(omega, 0, 1)
 
@@ -425,7 +425,7 @@ class CassieRefBuf(CassieRefEnv):
         self.state_buffer = []
         self.buffer_size = 1 # 3
         self.speed = 0.5  # 0.7389808690476192
-        self.side_speed = 0.2
+        self.side_speed = 0.0
         self.observation_space = spaces.Box(low=-np.inf,high=np.inf,shape=(self.buffer_size*38+2+2,))
         
     

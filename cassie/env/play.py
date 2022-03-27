@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
     t = time.monotonic()
-    model = PPO.load("model_saved/ppo_cassie_"+str(512 * 11)+"00")
+    model = PPO.load("model_saved/ppo_cassie_"+str(512 * 8)+"00")
     # model = PPO.load("ppo_cassie")
     cassie = CassieRefBuf(dynamics_randomization=False)
     obs = cassie.reset()
