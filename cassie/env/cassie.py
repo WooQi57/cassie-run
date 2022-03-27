@@ -36,14 +36,14 @@ class CassieRefEnv(gym.Env):
         self.P = np.array([100,  100,  88,  96,  50]) 
         self.D = np.array([10.0, 10.0, 8.0, 9.6, 5.0])
         self.u = pd_in_t()
-
+        self.foot_pos = [0]*6
         
         self.cassie_state = state_out_t()
         self.simrate = simrate  # simulate X mujoco steps with same pd target. 50 brings simulation from 2000Hz to exactly 40Hz
         self.time    = 0        # number of time steps in current episode
         self.phase   = 0        # portion of the phase the robot is in
         self.counter = 0        # number of phase cycles completed in episode
-        self.time_limit = 400
+        self.time_limit = 300
         self.offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -1.1997, -1.5968])
         self.time_buf = 0
         
@@ -63,7 +63,7 @@ class CassieRefEnv(gym.Env):
         self.mass_high = 1.5
         self.fric_low = 0.4
         self.fric_high = 1.1
-        self.speed = 4.0
+        self.speed = 1.0
         self.side_speed = 0.0
         self.orient_add = 0
 
@@ -91,6 +91,14 @@ class CassieRefEnv(gym.Env):
         self.rew_vel_buf = 0
         self.rew_termin_buf = 0
         self.reward_buf = 0
+        self.omega_buf = 0
+
+    def custom_footheight(self):
+        phase = self.phase
+        h = 0.15
+        h1 = max(0, h*np.sin(2*np.pi/28*phase)-0.03) 
+        h2 = max(0, h*np.sin(np.pi + 2*np.pi/28*phase)-0.03) 
+        return [h1,h2]
 
     def step_simulation(self,action):
         target = action + self.offset
@@ -123,14 +131,19 @@ class CassieRefEnv(gym.Env):
         for _ in range(self.simrate):            
             self.step_simulation(action)
             
-        obs = self.get_state()
-        height = self.qpos[2]
         self.time  += 1
         self.phase += 1
         if self.phase >= 28:
             self.phase = 0
             self.counter +=1
-        self.termination = height < 0.6 or height > 1.2
+        
+        obs = self.get_state()
+        self.sim.foot_pos(self.foot_pos)
+
+        xpos, ypos, height = self.qpos[0], self.qpos[1], self.qpos[2]
+        # xtarget, ytarget, ztarget = self.ref_pos[0], self.ref_pos[1], self.ref_pos[2] 
+        # pos2target = (xpos-xtarget)**2 + (ypos-ytarget)**2 + (height-ztarget)**2
+        self.termination = height < 0.6 or height > 1.2 # or  pos2target > 0.8**2
         done = self.termination or self.time >= self.time_limit
             
         if self.visual:
@@ -149,6 +162,7 @@ class CassieRefEnv(gym.Env):
             self.rew_termin_buf = self.rew_termin / self.time
             self.reward_buf = self.reward / self.time
             self.time_buf = self.time
+            self.omega_buf = self.omega / self.time
         
         self.rew_ref = 0
         self.rew_spring = 0
@@ -156,11 +170,12 @@ class CassieRefEnv(gym.Env):
         self.rew_vel = 0
         self.rew_termin = 0
         self.reward = 0
+        self.omega = 0
 
-        self.phase = 0
+        # self.phase = 0
         # self.phase = random.randint(0,27)
-        self.speed = 0.7 # np.random.uniform(self.min_speed, self.max_speed)
-        self.side_speed = 0.0 # np.random.uniform(self.min_side_speed, self.max_side_speed)
+        # self.speed = 0.7 # np.random.uniform(self.min_speed, self.max_speed)
+        # self.side_speed = 0.0 # np.random.uniform(self.min_side_speed, self.max_side_speed)
 
         self.time = 0
         self.counter = 0
@@ -255,12 +270,13 @@ class CassieRefEnv(gym.Env):
 
         # return self.get_state()
         # # xie's code:
-        self.phase = random.randint(0, 27)
-        self.time = 0
-        self.counter = 0
-        qpos, qvel = self.get_kin_state()
-        self.sim.set_qpos(qpos)
-        self.sim.set_qvel(qvel)
+        # self.phase = random.randint(0, 27)
+        # self.time = 0
+        # self.counter = 0
+        # qpos, qvel = self.get_kin_state()
+        # self.sim.set_qpos(qpos)
+        # self.sim.set_qvel(qvel)
+        self.phase = int((random.random()>0.5)*14)
         return self.get_state()
 
 
@@ -312,17 +328,24 @@ class CassieRefEnv(gym.Env):
         joint_penalty = np.sum(action * action)
 
         ref_penalty = 0
-        joint_index = [7, 8, 9, 14, 20, 21, 22, 23, 28, 34]
-        weight = [0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05]
-        for i in range(10):
-            error = weight[i] * (ref_pos[joint_index[i]]-self.sim.qpos()[joint_index[i]])**2
-            ref_penalty += error*30
+        # joint_index = [7, 8, 9, 14, 20, 21, 22, 23, 28, 34]
+        # weight = [0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05]
+        # for i in range(10):
+        #     error = weight[i] * (ref_pos[joint_index[i]]-self.sim.qpos()[joint_index[i]])**2
+        #     ref_penalty += error*30
+        custom_footheight = np.array(self.custom_footheight())
+        real_footheight = np.array([self.foot_pos[2],self.foot_pos[5]])
+        ref_penalty = np.sum(np.square(custom_footheight - real_footheight))
+        ref_penalty = ref_penalty/0.0025
 
         orientation_penalty = (self.qpos[4])**2+(self.qpos[5])**2+(self.qpos[6])**2
+        orientation_penalty = orientation_penalty/0.1
         
-        com_penalty = (ref_pos[0] - self.sim.qpos()[0])**2 + (self.sim.qpos()[1])**2 + (self.sim.qpos()[2]-ref_pos[2])**2
+        # com_penalty = (ref_pos[0] - self.sim.qpos()[0])**2 + (self.sim.qpos()[1]-0)**2 + (self.sim.qpos()[2]-ref_pos[2])**2
+        # com_penalty = com_penalty/0.1
 
         vel_penalty = (self.speed - self.qvel[0])**2 + (self.side_speed - self.qvel[1])**2 + (self.qvel[2])**2
+        vel_penalty = vel_penalty/max(0.25*(self.speed*self.speed+self.side_speed*self.side_speed),0.01)
         
         spring_penalty = (self.sim.qpos()[15])**2+(self.sim.qpos()[29])**2
         spring_penalty *= 1000
@@ -331,16 +354,23 @@ class CassieRefEnv(gym.Env):
         rew_ref = 0.5*np.exp(-ref_penalty)
         rew_spring = 0.1*np.exp(-spring_penalty)
         rew_ori = 0.125*np.exp(-orientation_penalty)
-        rew_vel = 0.375*np.exp(-vel_penalty)
+        rew_vel = 0.375*np.exp(-vel_penalty) #
         rew_termin = -10 * self.termination
         # reward = rew_ref + rew_spring + rew_ori + rew_vel + rew_termin # dm
          
         # ada algo
+        # omega = 0.5
         R_star = 1
         Rp = (0.75 * np.exp(-vel_penalty) + 0.25 * np.exp(-orientation_penalty))/ R_star
+        # Rp = (Rp-0.2)/(1.0-0.2)# 0.6 - 1 # norm 
         Ri = np.exp(-ref_penalty) / R_star
-        omega = np.square(4 * Ri - 3 * Rp) * (Rp<Ri) + Rp * (Rp>=Ri)
-        omega = np.clip(omega, 0, 1.5)
+        # Ri = (Ri-0.2)/(1.0-0.2) # 0.6 - 1 # norm
+        # omega = max(Ri,Rp)
+        # omega = np.clip(omega, 0, 1)
+
+        ####### no ada
+        omega = 0.5
+
         reward = (1 - omega) * Ri + omega * Rp + rew_spring + rew_termin
 
         self.rew_ref += rew_ref
@@ -349,6 +379,7 @@ class CassieRefEnv(gym.Env):
         self.rew_vel += rew_vel
         self.rew_termin += rew_termin
         self.reward += reward
+        self.omega += omega
 
         return reward
 
@@ -357,19 +388,31 @@ class CassieRefEnv(gym.Env):
 
     def get_kin_state(self):
         pose = np.copy(self.trajectory.qpos[self.phase*2*30])
-        pose[0] += (self.trajectory.qpos[1681, 0]- self.trajectory.qpos[0, 0])* self.counter
-        pose[1] = 0
+        # pose[0] += (self.trajectory.qpos[1681, 0]- self.trajectory.qpos[0, 0])* self.counter   #   0.62074393 * counter
+        # pose[0] *= self.speed
+        pose[0] = self.speed  * (self.counter * 28 + self.phase) * (self.simrate / 2000)
+        pose[1] = self.side_speed  * (self.counter * 28 + self.phase) * (self.simrate / 2000)
+        pose[2] = 1.03 # 
         vel = np.copy(self.trajectory.qvel[self.phase*2*30])
+        # vel[0] *= self.speed
+        vel[0] = self.speed
         return pose, vel
 
     def get_kin_next_state(self):   
         phase = self.phase + 1
+        counter = self.counter
         if phase >= 28:
             phase = 0
-        pose = np.copy(self.trajectory.qpos[phase*2*30])
-        vel = np.copy(self.trajectory.qvel[phase*2*30])
-        pose[0] += (self.trajectory.qpos[1681, 0]- self.trajectory.qpos[0, 0])* self.counter
-        pose[1] = 0
+            counter += 1
+        pose = np.copy(self.trajectory.qpos[phase*2*30])        
+        vel = np.copy(self.trajectory.qvel[phase*2*30])        
+        # pose[0] += (self.trajectory.qpos[1681, 0]- self.trajectory.qpos[0, 0])* counter
+        # pose[0] *= self.speed
+        pose[0] = self.speed  * (counter * 28 + phase) * (self.simrate / 2000)
+        pose[1] = self.side_speed  * (counter * 28 + phase) * (self.simrate / 2000)
+        pose[2] = 1.03  # 
+        # vel[0] *= self.speed
+        vel[0] = self.speed
         return pose, vel
 
 
@@ -380,8 +423,10 @@ class CassieRefBuf(CassieRefEnv):
                  visual=visual, config=config)
         self.delay = delay        
         self.state_buffer = []
-        self.buffer_size = 3
-        self.observation_space = spaces.Box(low=-np.inf,high=np.inf,shape=(self.buffer_size*40+40,))
+        self.buffer_size = 1 # 3
+        self.speed = 0.5  # 0.7389808690476192
+        self.side_speed = 0.2
+        self.observation_space = spaces.Box(low=-np.inf,high=np.inf,shape=(self.buffer_size*38+2+2,))
         
     
     def get_state(self):
@@ -399,7 +444,7 @@ class CassieRefBuf(CassieRefEnv):
         vel = np.array([x[1] for x in self.state_buffer])
 
         self.ref_pos, self.ref_vel = self.get_kin_next_state()
-
+        command = [self.speed, self.side_speed]
         '''
 		Position [1], [2] 				-> Pelvis y, z
 				 [3], [4], [5], [6] 	-> Pelvis Orientation qw, qx, qy, qz
@@ -414,7 +459,7 @@ class CassieRefBuf(CassieRefEnv):
 				 [30]					-> Rigt Tarsus 	(Joint[4])
 				 [34]					-> Rigt Foot   	(Motor[9], Joint[5])
 		'''
-        pos_index = np.array([1,2,3,4,5,6,7,8,9,14,15,16,20,21,22,23,28,29,30,34])
+        pos_index = np.array([3,4,5,6,7,8,9,14,15,16,20,21,22,23,28,29,30,34])
         '''
 		Velocity [0], [1], [2] 			-> Pelvis x, y, z
 				 [3], [4], [5]		 	-> Pelvis Orientation wx, wy, wz
@@ -430,5 +475,9 @@ class CassieRefBuf(CassieRefEnv):
 				 [31]					-> Rigt Foot   	(Motor[9], Joint[5])
 		'''
         vel_index = np.array([0,1,2,3,4,5,6,7,8,12,13,14,18,19,20,21,25,26,27,31])
-        
-        return np.concatenate([pos[:,pos_index].reshape(-1), vel[:,vel_index].reshape(-1), self.ref_pos[pos_index], self.ref_vel[vel_index]])
+        # next todo: x,y,z in state -> delta xyz to target + target velo
+        return np.concatenate([pos[:,pos_index].reshape(-1), vel[:,vel_index].reshape(-1), 
+                                                            [np.sin(self.phase/28*2*np.pi),np.cos(self.phase/28*2*np.pi)],
+                                                            # self.ref_pos[pos_index], self.ref_vel[vel_index]
+                                                            command
+                                                            ])

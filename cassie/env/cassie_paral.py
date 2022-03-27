@@ -33,6 +33,7 @@ if __name__ == '__main__':
             self.logger.record('reward/termination', self.training_env.get_attr('rew_termin_buf')[0])
             self.logger.record('reward/steps', self.training_env.get_attr('time_buf')[0])
             self.logger.record('reward/totalreward', self.training_env.get_attr('reward_buf')[0])
+            self.logger.record('reward/omega', self.training_env.get_attr('omega_buf')[0])
             self.logger.record('reward/imit', 2*self.training_env.get_attr('rew_ref_buf')[0])
             self.logger.record('reward/perf', 2*self.training_env.get_attr('rew_ori_buf')[0]
                                             + 2*self.training_env.get_attr('rew_vel_buf')[0])
@@ -44,9 +45,9 @@ if __name__ == '__main__':
             return True
 
     policy_kwargs = dict(activation_fn=torch.nn.ReLU,
-                     net_arch=[dict(pi=[512, 512], vf=[512, 512])])
-    model = PPO("MlpPolicy", envs, verbose=1, n_steps=512, policy_kwargs=policy_kwargs,
-        batch_size=256,tensorboard_log="./ppolog/")
+                     net_arch=[dict(pi=[256, 256], vf=[256, 256])])
+    model = PPO("MlpPolicy", envs, verbose=1, n_steps=256, policy_kwargs=policy_kwargs,
+        batch_size=128,tensorboard_log="./sinref/")
     model.is_tb_set = False
 
     model.learn(total_timesteps=2e7,n_eval_episodes=10,callback=TensorboardCallback())
