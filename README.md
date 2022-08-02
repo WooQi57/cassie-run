@@ -1,7 +1,7 @@
 <img src="https://github.com/osudrl/apex/blob/master/apex-logo.png" alt="apex" width="200"/>
 
 ----
-
+https://github.com/osudrl/apex
 Apex is a small, modular library that contains some implementations of continuous reinforcement learning algorithms. Fully compatible with OpenAI gym.
 
 <img src="img/output.gif" alt="running1"/>
